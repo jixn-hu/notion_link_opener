@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>本地链接生成器</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --brand: #1e80ff; --brand-dark: #1765cc; --bg: #f5f7fb; --card: #fff;
+      --text: #1f2328; --muted: #6b7280; --border: #e5e7eb; --radius: 14px;
+      --good: #10b981; --warn: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: "Segoe UI","PingFang SC",system-ui,-apple-system,Arial,sans-serif;
+      color:var(--text); background: var(--bg); margin:0; }
+    .container { max-width: 980px; margin: 40px auto; padding: 0 20px; }
+    .nav { display:flex; justify-content: space-between; align-items:center; margin-bottom: 16px; }
+    .nav a { color: var(--brand); text-decoration: none; font-weight: 600; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+      box-shadow:0 10px 30px rgba(0,0,0,.06); padding:24px; margin-top:16px; }
+    h1 { margin:0 0 6px; font-size:26px; }
+    p.desc { margin:0 0 18px; color:var(--muted); }
+    label { font-size:13px; color:var(--muted); display:block; margin-bottom:6px; }
+    input[type=text], select, textarea { width:100%; padding:12px 14px; border-radius:10px;
+      border:1px solid var(--border); font-size:14px; background:#fbfcff; outline:none; }
+    textarea { min-height: 140px; font-family: ui-monospace,Consolas,monospace; }
+    .row { display:grid; grid-template-columns: 1fr 200px; gap:12px; }
+    .row + .row { margin-top: 12px; }
+    .actions { margin-top:14px; display:flex; gap:12px; flex-wrap:wrap; }
+    button { padding:11px 16px; border-radius:10px; border:1px solid var(--brand);
+      background:var(--brand); color:#fff; cursor:pointer; font-weight:600; }
+    button:hover { background: var(--brand-dark); }
+    .btn-secondary { background:#fff; color:var(--brand); border-color:var(--border); }
+    .btn-secondary:hover { border-color: var(--brand); background:#f7faff; }
+    .result { margin-top:16px; padding:14px; border:1px dashed var(--border); border-radius:10px; background:#f9fbff; }
+    .mono { font-family: ui-monospace,Consolas,monospace; }
+    .muted { color: var(--muted); }
+    table { width:100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border-bottom:1px solid var(--border); padding:8px 6px; font-size: 14px; }
+    th { text-align:left; color:#374151; }
+    .ok { color: var(--good); }
+    .bad { color: var(--warn); }
+    .hint { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="nav">
+      <div class="mono muted">本地运行 · 只在你的电脑上打开</div>
+      <div><a href="/static/links.html">📜 短链历史</a></div>
+    </div>
+
+    <!-- 单条生成 -->
+    <div class="card">
+      <h1>🔗 单条生成</h1>
+      <p class="desc">输入绝对路径 → 选择动作 → 生成短链（更美观）。点击短链会跳到完整链接并在本机执行打开。</p>
+
+      <div class="row">
+        <div>
+          <label>绝对路径</label>
+          <input id="target" type="text" placeholder='例如 D:/CODE/fastapi_app 或 D:\CODE\fastapi_app'>
+        </div>
+        <div>
+          <label>动作</label>
+          <select id="action">
+            <option value="open">打开</option>
+            <option value="reveal">定位所在文件夹</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>自定义短链（可选，字母数字）</label>
+          <input id="alias" type="text" placeholder="例如 fastapi">
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <div class="actions">
+            <button id="btnGen">生成链接</button>
+            <button class="btn-secondary" id="btnNormalize" type="button">格式化路径</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="singleResult" class="result" style="display:none;">
+        <div>短链：<a id="singleShort" href="#" target="_blank" class="mono"></a>
+          <button id="copySingleShort" class="btn-secondary" type="button">复制短链</button>
+        </div>
+        <div style="margin-top:8px;">完整：<a id="singleFull" href="#" target="_blank" class="mono"></a>
+          <button id="copySingleFull" class="btn-secondary" type="button">复制完整链接</button>
+        </div>
+        <div id="singleNote" class="hint"></div>
+      </div>
+
+      <div class="hint">
+        💡 Windows：资源管理器选中文件/文件夹 → <span class="mono">Shift + 右键 → 复制为路径</span>。
+      </div>
+    </div>
+
+    <!-- 批量生成 -->
+    <div class="card">
+      <h1>📦 批量生成</h1>
+      <p class="desc">每行一条。支持格式：<span class="mono">路径</span> 或 <span class="mono">别名 | 路径</span>（竖线前后可有空格）。</p>
+
+      <div class="row">
+        <div>
+          <label>批量输入</label>
+          <textarea id="batchInput" placeholder="示例：&#10;D:/CODE/fastapi_app&#10;proj1 | D:/docs/报告.pdf&#10;music | D:/Music/playlist.m3u8"></textarea>
+        </div>
+        <div>
+          <label>动作</label>
+          <select id="batchAction">
+            <option value="open">打开</option>
+            <option value="reveal">定位所在文件夹</option>
+          </select>
+          <div class="actions">
+            <button id="btnBatch">批量生成</button>
+            <button class="btn-secondary" id="btnBatchNormalize" type="button">格式化每行</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="batchResult" class="result" style="display:none;">
+        <div class="actions">
+          <button class="btn-secondary" id="btnCopyAllShort" type="button">复制全部短链</button>
+          <button class="btn-secondary" id="btnGoHistory" type="button" onclick="location.href='/static/links.html'">查看历史</button>
+        </div>
+        <table id="batchTable">
+          <thead>
+            <tr><th>别名</th><th>路径</th><th>短链</th><th>完整链接</th><th>状态</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="hint">⚠️ 浏览器出于安全限制，无法通过拖拽/文件选择拿到“绝对路径”，请从资源管理器复制。</div>
+    </div>
+  </div>
+
+  <script>
+    const $ = s => document.querySelector(s);
+
+    // ===== 单条 =====
+    const target = $('#target'), action = $('#action'), alias = $('#alias');
+    const btnGen = $('#btnGen'), btnNormalize = $('#btnNormalize');
+    const singleResult = $('#singleResult'), singleShort = $('#singleShort'), singleFull = $('#singleFull');
+    const copySingleShort = $('#copySingleShort'), copySingleFull = $('#copySingleFull'), singleNote = $('#singleNote');
+
+    function normalizePath(p){ if(!p) return ''; let s=p.trim();
+      if((s.startsWith('"')&&s.endsWith('"'))||(s.startsWith("'")&&s.endsWith("'"))) s=s.slice(1,-1);
+      return s.replace(/\\/g,'/'); }
+
+    btnNormalize.addEventListener('click', ()=>{ target.value = normalizePath(target.value); });
+
+    btnGen.addEventListener('click', async ()=>{
+      const t = normalizePath(target.value);
+      if(!t){ alert('请输入绝对路径'); return; }
+      const params = new URLSearchParams({ target: t, action: action.value });
+      if(alias.value.trim()) params.set('alias', alias.value.trim());
+      const resp = await fetch(`/gen?${params.toString()}`);
+      const data = await resp.json();
+      singleResult.style.display = '';
+      if(!resp.ok){
+        singleShort.removeAttribute('href'); singleFull.removeAttribute('href');
+        singleShort.textContent = ''; singleFull.textContent = '';
+        singleNote.innerHTML = `<span class="bad">❌ 错误：</span><span class="mono">${data.detail || JSON.stringify(data)}</span>`;
+        return;
+      }
+      singleShort.href = data.short_url; singleShort.textContent = data.short_url;
+      singleFull.href = data.full_url; singleFull.textContent = data.full_url;
+      singleNote.textContent = '短链更美观，可直接放 Notion/文档。';
+    });
+
+    copySingleShort.addEventListener('click', async ()=>{ if(singleShort.href){ await navigator.clipboard.writeText(singleShort.href); copySingleShort.textContent='已复制'; setTimeout(()=>copySingleShort.textContent='复制短链',1200);} });
+    copySingleFull .addEventListener('click', async ()=>{ if(singleFull.href ){ await navigator.clipboard.writeText(singleFull.href ); copySingleFull .textContent='已复制'; setTimeout(()=>copySingleFull .textContent='复制完整链接',1200);} });
+
+    // ===== 批量 =====
+    const batchInput = $('#batchInput'), batchAction = $('#batchAction');
+    const btnBatch = $('#btnBatch'), btnBatchNormalize = $('#btnBatchNormalize');
+    const batchResult = $('#batchResult'), batchTable = $('#batchTable tbody'), btnCopyAllShort = $('#btnCopyAllShort');
+
+    function parseBatch(text){
+      const lines = text.split(/\r?\n/);
+      const items = [];
+      for(const line of lines){
+        const raw = line.trim();
+        if(!raw) continue;
+        // 支持 “alias | path” 或 只有 “path”
+        const m = raw.split('|');
+        if(m.length >= 2){
+          const alias = m[0].trim();
+          const path  = normalizePath(m.slice(1).join('|').trim());
+          items.push({ alias, target: path });
+        }else{
+          items.push({ target: normalizePath(raw) });
+        }
+      }
+      return items;
+    }
+
+    btnBatchNormalize.addEventListener('click', ()=>{
+      const items = parseBatch(batchInput.value);
+      const out = items.map(x => x.alias ? `${x.alias} | ${x.target}` : x.target).join('\n');
+      batchInput.value = out;
+    });
+
+    btnBatch.addEventListener('click', async ()=>{
+      const items = parseBatch(batchInput.value);
+      if(items.length===0){ alert('请输入至少一行路径'); return; }
+      const body = JSON.stringify({ items, action: batchAction.value });
+      const resp = await fetch('/gen_batch', { method:'POST', headers:{'Content-Type':'application/json'}, body });
+      const data = await resp.json();
+
+      batchResult.style.display = '';
+      batchTable.innerHTML = '';
+      if(!resp.ok){
+        batchTable.innerHTML = `<tr><td colspan="5" class="bad mono">${data.detail || JSON.stringify(data)}</td></tr>`;
+        return;
+      }
+      const rows = [];
+      for(const it of data.items){
+        if(it.error){
+          rows.push(`<tr>
+            <td class="mono">${it.alias || ''}</td>
+            <td class="mono">${it.target || ''}</td>
+            <td class="bad">—</td>
+            <td class="bad">—</td>
+            <td class="bad">❌ ${it.error}</td>
+          </tr>`);
+        }else{
+          rows.push(`<tr>
+            <td class="mono">${it.alias || ''}</td>
+            <td class="mono">${it.target}</td>
+            <td><a class="mono" href="${it.short_url}" target="_blank">${it.short_url}</a></td>
+            <td><a class="mono" href="${it.full_url}" target="_blank">完整</a></td>
+            <td class="ok">✅ OK</td>
+          </tr>`);
+        }
+      }
+      batchTable.innerHTML = rows.join('');
+    });
+
+    btnCopyAllShort.addEventListener('click', async ()=>{
+      const urls = Array.from(batchTable.querySelectorAll('a[href^="/"], a[href^="http"]'))
+        .filter(a => a.textContent.startsWith('http://') || a.href.includes('/s/'))
+        .map(a => a.href)
+        .filter(href => href.includes('/s/')); // 只复制短链
+      if(urls.length===0){ alert('没有可复制的短链'); return; }
+      await navigator.clipboard.writeText(urls.join('\n'));
+      btnCopyAllShort.textContent = '已复制';
+      setTimeout(()=>btnCopyAllShort.textContent='复制全部短链',1200);
+    });
+  </script>
+</body>
+</html>

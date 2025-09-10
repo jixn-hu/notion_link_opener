@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>短链历史</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --brand:#1e80ff; --border:#e5e7eb; --muted:#6b7280; --good:#10b981; --warn:#ef4444; }
+    body { font-family:"Segoe UI","PingFang SC",system-ui,-apple-system,Arial,sans-serif; margin:24px; }
+    a { color: var(--brand); text-decoration: none; }
+    .top { display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom:1px solid var(--border); padding:8px 6px; font-size: 14px; }
+    th { text-align:left; color:#374151; }
+    .mono { font-family: ui-monospace,Consolas,monospace; }
+    .muted { color: var(--muted); }
+    button { padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:#fff; cursor:pointer; }
+    button:hover { border-color: var(--brand); }
+    .danger { color:#fff; background: var(--warn); border-color: var(--warn); }
+    .danger:hover { filter: brightness(.95); }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div><a href="/static/index.html">⬅ 返回生成器</a></div>
+    <div class="muted">仅本机可用</div>
+  </div>
+
+  <h2>📜 短链历史</h2>
+  <div style="margin:8px 0;">
+    <label class="muted">最多显示：</label>
+    <select id="limitSel">
+      <option>100</option><option selected>500</option><option>1000</option>
+    </select>
+    <button id="btnRefresh">刷新</button>
+    <button id="btnCopyAll" class="mono">复制表中短链</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>短链</th><th>路径</th><th>动作</th><th>创建时间</th><th>操作</th></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <script>
+    const $ = s => document.querySelector(s);
+    const tbody = $('#tbody');
+    const limitSel = $('#limitSel');
+    const btnRefresh = $('#btnRefresh');
+    const btnCopyAll = $('#btnCopyAll');
+
+    function fmt(ts){
+      const d = new Date(ts * 1000);
+      return d.toLocaleString();
+    }
+    function rowHtml(item){
+      const short = `${location.origin}/s/${item.token}`;
+      const path = item.path || '';
+      const action = item.action || '';
+      return `<tr data-token="${item.token}">
+        <td><a class="mono" href="${short}" target="_blank">${short}</a></td>
+        <td class="mono">${path}</td>
+        <td class="mono">${action}</td>
+        <td class="mono">${fmt(item.created_at)}</td>
+        <td><button class="danger" onclick="delRow('${item.token}')">删除</button></td>
+      </tr>`;
+    }
+    async function load(){
+      const limit = parseInt(limitSel.value || '500', 10);
+      const resp = await fetch(`/api/links?limit=${limit}`);
+      const data = await resp.json();
+      if(!resp.ok){ tbody.innerHTML = `<tr><td colspan="5" class="mono">错误：${data.detail||JSON.stringify(data)}</td></tr>`; return; }
+      const rows = (data.items||[]).map(rowHtml).join('');
+      tbody.innerHTML = rows || `<tr><td colspan="5" class="mono">暂无数据</td></tr>`;
+    }
+    window.delRow = async function(token){
+      if(!confirm(`确认删除短链 ${location.origin}/s/${token} ？`)) return;
+      const resp = await fetch(`/api/links/${token}`, { method:'DELETE' });
+      if(resp.ok){
+        const tr = tbody.querySelector(`tr[data-token="${token}"]`);
+        if(tr) tr.remove();
+      }else{
+        const data = await resp.json();
+        alert('删除失败：' + (data.detail || resp.statusText));
+      }
+    }
+    btnRefresh.addEventListener('click', load);
+    btnCopyAll.addEventListener('click', async ()=>{
+      const urls = Array.from(tbody.querySelectorAll('a')).map(a=>a.href);
+      if(urls.length===0) return alert('没有可复制的短链');
+      await navigator.clipboard.writeText(urls.join('\n'));
+      btnCopyAll.textContent = '已复制';
+      setTimeout(()=>btnCopyAll.textContent='复制表中短链',1200);
+    });
+    load();
+  </script>
+</body>
+</html>
