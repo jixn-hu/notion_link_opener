@@ -77,20 +77,6 @@ http://127.0.0.1:6060
 
 ## ⚙️ 配置
 
-* **密钥（强烈建议修改）**
-  默认从环境变量读取：`NFO_SECRET`
-
-  ```bash
-  # Windows PowerShell
-  $env:NFO_SECRET="a_very_long_random_secret"
-  python notion_link_opener.py
-
-  # Linux/macOS
-  NFO_SECRET="a_very_long_random_secret" python notion_link_opener.py
-  ```
-
-  用于计算签名（防止链接被篡改）。修改后旧链接会失效，重新生成即可。
-
 * **HOST/PORT**
   如需变更，请直接修改 `notion_link_opener.py` 顶部常量 `HOST / PORT`（默认仅监听本机）。
 
@@ -240,7 +226,7 @@ http://127.0.0.1:6060
 
 ## 📄 许可
 
-本项目示例以 MIT 许可开源（可根据你的需要调整）。
+本项目示例以 MIT 许可开源。
 
 ---
 
