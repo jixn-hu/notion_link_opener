@@ -1,0 +1,3 @@
+title notion_link_opener
+python notion_link_opener.py
+exit

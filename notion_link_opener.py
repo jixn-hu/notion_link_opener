@@ -12,14 +12,14 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, Query, HTTPException
-from fastapi.responses import PlainTextResponse, RedirectResponse, JSONResponse
+from fastapi.responses import PlainTextResponse, RedirectResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 
 # ================== 配置 ==================
 HOST = "127.0.0.1"
-HOST = "10.17.214.31"
+# HOST = "10.17.214.31"
 PORT = 6060
 # 修改为更复杂的密钥，或用环境变量 NFO_SECRET 提供
 SECRET_KEY = os.environ.get("NFO_SECRET", "change_me_to_a_long_random_secret")
@@ -178,11 +178,12 @@ def home():
     return RedirectResponse(url="/static/index.html")
 
 
-@app.get("/open", response_class=PlainTextResponse)
+@app.get("/open")
 def open_from_link(
     path: str = Query(..., description="Base64-URL 编码的绝对路径"),
     sig: str = Query(..., description="签名(HMAC-SHA256)"),
     action: str = Query("open", description="open | reveal"),
+    t: int = Query(5, description="自动关闭的秒数，默认 5"),
 ):
     if action not in ACTIONS:
         raise HTTPException(status_code=400, detail="action 不合法（open|reveal）")
@@ -199,7 +200,38 @@ def open_from_link(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"打开失败: {e}")
 
-    return f"已请求 {action}: {p}"
+    # 返回一个会在 t 秒后尝试自动关闭的极简页面
+    html = f"""<!doctype html>
+<html lang="zh"><meta charset="utf-8">
+<style>
+  body {{ font:14px/1.5 -apple-system,BlinkMacSystemFont,Segoe UI,Arial; background:#f5f7fb; margin:0; }}
+  .box {{ max-width:600px; margin:14vh auto; background:#fff; border:1px solid #e5e7eb; border-radius:12px;
+          box-shadow:0 10px 30px rgba(0,0,0,.06); padding:20px; }}
+  .title {{ font-weight:700; margin-bottom:6px; }}
+  .path {{ font-family: ui-monospace,Consolas,monospace; color:#374151; word-break:break-all; }}
+  .hint {{ color:#6b7280; margin-top:10px; }}
+</style>
+<div class="box">
+  <div class="title">已触发 {action}</div>
+  <div class="path">{p}</div>
+  <div class="hint"><span id="sec">{t}</span> 秒后自动关闭此页面…（若未关闭，请手动关闭）</div>
+</div>
+<script>
+  (function(){{
+    var s = {t};
+    var el = document.getElementById('sec');
+    var timer = setInterval(function(){{
+      s -= 1; if(el) el.textContent = s;
+      if(s <= 0) {{
+        clearInterval(timer);
+        try {{ window.close(); }} catch(e) {{}}
+        try {{ window.open('','_self'); window.close(); }} catch(e) {{}}
+      }}
+    }}, 1000);
+  }})();
+</script>
+</html>"""
+    return HTMLResponse(html)
 
 
 @app.get("/gen", response_class=JSONResponse)
@@ -298,6 +330,12 @@ def api_delete_link(token: str):
     return {"deleted": True}
 
 
-if __name__ == "__main__":
-    print(f"服务已启动: http://{HOST}:{PORT}")
+def main():
+    import uvicorn
+    # 用环境变量可改端口：NFO_PORT / NFO_HOST
     uvicorn.run(app, host=HOST, port=PORT)
+
+if __name__ == "__main__":
+    main()
+    print(f"服务已启动: http://{HOST}:{PORT}")
+
